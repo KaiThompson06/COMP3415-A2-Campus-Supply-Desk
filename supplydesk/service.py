@@ -83,6 +83,7 @@ class OrderService:
             raise ValueError("An order must contain at least one item.")
         lines = []
         subtotal = 0
+        already_ordered = {} # tracks already ordered items and their quantities to prevent over-ordering across multiple lines
         for item in items:
             if not isinstance(item, dict):
                 raise ValueError("Each item must contain a product_id and quantity.")
@@ -96,8 +97,12 @@ class OrderService:
             quantity = item.get("quantity")
             if type(quantity) is not int or quantity < MIN_QUANTITY or quantity > MAX_QUANTITY:
                 raise ValueError("Quantity must be an integer from " + str(MIN_QUANTITY) + " to " + str(MAX_QUANTITY) + ".")
-            if quantity > product["stock"]:
-                raise ValueError("Not enough stock for " + product["product_id"] + ".")
+            previous_quantity = already_ordered.get(product["product_id"], 0) # get prev quant from already_ordered dict, default to 0 if not found
+            if quantity + previous_quantity > product["stock"]:
+                raise ValueError("Not enough stock for " + product["product_id"] + ".")            
+            
+            already_ordered[product["product_id"]] = already_ordered.get(product["product_id"], 0) + quantity # update already_ordered dict with new quantity for this product
+            
             line_total = product["unit_price_cents"] * quantity
             subtotal += line_total
             lines.append({
