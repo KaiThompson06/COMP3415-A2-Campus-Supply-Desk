@@ -49,41 +49,59 @@ def run_menu(service):
             print("\n1. View products and stock\n2. Get a quote\n3. Place an order"
                   "\n4. View order history\n5. Find an order\n6. Cancel an order\n0. Exit")
             choice = input("Choose an option: ").strip()
-            if choice == "0":
-                print("Goodbye.")
-                return 0
-            if choice == "1":
-                show_catalog(service.catalog())
-            elif choice in ("2", "3"):
-                request = read_request(service)
-                if choice == "2":
-                    show_order(service.quote(*request))
-                    print("Quote only: no stock reserved and no order created.")
-                else:
-                    show_order(service.quote(*request))
-                    if input("Place this order? [y/N]: ").strip().lower() == "y":
-                        show_order(service.place_order(*request))
-                    else:
-                        print("Order not placed.")
-            elif choice == "4":
-                orders = service.list_orders()
-                if not orders:
-                    print("No orders yet.")
-                for order in orders:
-                    show_order(order)
-            elif choice == "5":
-                show_order(service.get_order(input("Order ID: ").strip()))
-            elif choice == "6":
-                order_id = input("Order ID to cancel: ").strip()
-                if input("Cancel this order? [y/N]: ").strip().lower() == "y":
-                    show_order(service.cancel_order(order_id))
-                else:
-                    print("Cancellation abandoned.")
-            else:
-                print("Choose a number from 0 to 6.")
+            match choice:
+                case "0":
+                    print("Goodbye.")
+                    return 0
+                case "1":
+                    show_catalog(service.catalog())
+                case "2":
+                    handle_get_quote(service)
+                case "3":
+                    handle_place_order(service)
+                case "4":
+                    handle_list_orders(service)
+                case "5":
+                    order_id = input("Order ID: ").strip()
+                    handle_find_order(service, order_id)
+                case "6":
+                    order_id = input("Order ID to cancel: ").strip()
+                    handle_cancel_order(service, order_id)
+                case _:
+                    print("Invalid choice. Please enter a number from the menu.")
         except (EOFError, KeyboardInterrupt):
             print("\nGoodbye.")
             return 0
+        
         except (ValueError, OSError, KeyError, TypeError) as error:
             print(f"Error: {error}")
             print("Returning to the menu. Check your input or state file before retrying.")
+
+def handle_get_quote(service):
+    request = read_request(service)
+    show_order(service.quote(*request))
+    print("Quote only: no stock reserved and no order created.")
+
+def handle_place_order(service):
+    request = read_request(service)
+    show_order(service.quote(*request))
+    if input("Place this order? [y/N]: ").strip().lower() == "y":
+        show_order(service.place_order(*request))
+    else:
+        print("Order not placed.")
+
+def handle_list_orders(service):
+    orders = service.list_orders()
+    if not orders:
+        print("No orders yet.")
+    for order in orders:
+        show_order(order)
+
+def handle_find_order(service, order_id):
+    show_order(service.get_order(order_id))
+
+def handle_cancel_order(service, order_id):
+    if input("Cancel this order? [y/N]: ").strip().lower() == "y":
+        show_order(service.cancel_order(order_id))
+    else:
+        print("Cancellation abandoned.")
