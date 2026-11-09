@@ -105,5 +105,52 @@ class OrderSmokeTests(unittest.TestCase):
         self.assertEqual(quote["delivery_cents"], order["delivery_cents"])
 
 
+##### CR-01 tests
+    # CR-01: PRICING, student discount applies to merchandise only, not the express fee
+    def test_express_student_discount_excludes_fee(self):
+        quote = self.service.quote("student", [{"product_id": "hoodie", "quantity": 2}], "express")
+        self.assertEqual(quote["subtotal_cents"], 8000)
+        self.assertEqual(quote["discount_cents"], 800)   # 10% of 8000 only, not of 9200
+        self.assertEqual(quote["delivery_cents"], 1200)
+        self.assertEqual(quote["total_cents"], 8400)
+
+    # CR-01: PRICING, free-delivery threshold never waives the express fee
+    def test_express_fee_never_waived(self):
+        quote = self.service.quote("regular", [{"product_id": "hoodie", "quantity": 3}], "express")
+        self.assertEqual(quote["subtotal_cents"], 12000)   # over the $100 free-delivery threshold
+        self.assertEqual(quote["delivery_cents"], 1200)
+        self.assertEqual(quote["total_cents"], 13200)
+
+    # CR-01: REGRESSION, standard delivery threshold unchanged
+    def test_standard_delivery_threshold_unchanged(self):
+        # 9500 subtotal: under the threshold, so the $6.00 fee applies
+        below = self.service.quote("regular", [
+            {"product_id": "hoodie", "quantity": 2},
+            {"product_id": "mug", "quantity": 1},
+        ], "delivery")
+        self.assertEqual(below["delivery_cents"], 600)
+        self.assertEqual(below["total_cents"], 10100)
+        # 10000 subtotal: at the threshold, so delivery is free
+        at = self.service.quote("regular", [
+            {"product_id": "hoodie", "quantity": 2},
+            {"product_id": "mug", "quantity": 1},
+            {"product_id": "notebook", "quantity": 1},
+        ], "delivery")
+        self.assertEqual(at["delivery_cents"], 0)
+        self.assertEqual(at["total_cents"], 10000)
+
+    # CR-01: LIFECYCLE, express order survives retrieval, reload, and cancel
+    def test_express_order_persists_and_cancels(self):
+        stock_before = self.service.catalog()
+        order = self.service.place_order("student", [{"product_id": "hoodie", "quantity": 2}], "express")
+        self.assertEqual(order["total_cents"], 8400)
+        reopened = OrderService(self.path).get_order(order["order_id"])
+        self.assertEqual(reopened, order)
+        cancelled = self.service.cancel_order(order["order_id"])
+        self.assertEqual(cancelled["status"], "cancelled")
+        for key in ("fulfillment", "items", "delivery_cents", "discount_cents", "total_cents"):
+            self.assertEqual(cancelled[key], order[key])
+        self.assertEqual(self.service.catalog(), stock_before)
+
 if __name__ == "__main__":
     unittest.main()
